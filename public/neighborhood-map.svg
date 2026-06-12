@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" role="img" aria-labelledby="title desc">
+  <title id="title">Neighborhood planning map</title>
+  <desc id="desc">A stylized map showing venues, routes, and activity stops.</desc>
+  <rect width="960" height="640" fill="#f0ede6"/>
+  <path d="M80 118c118 36 202 28 302-8 88-32 181-32 298 2 82 24 145 29 222 8" fill="none" stroke="#d8c3aa" stroke-width="44" stroke-linecap="round" opacity=".82"/>
+  <path d="M70 420c126-34 220-32 316 4 111 42 214 41 323-3 64-26 111-31 184-19" fill="none" stroke="#dedbd2" stroke-width="52" stroke-linecap="round" opacity=".88"/>
+  <path d="M175 52v540M364 28v575M598 44v552M788 34v570" stroke="#dbd5ca" stroke-width="18" stroke-linecap="round"/>
+  <path d="M40 228h872M58 333h850M100 520h760" stroke="#d4cec2" stroke-width="18" stroke-linecap="round"/>
+  <path d="M122 112c118 96 185 158 256 220 80 69 167 122 304 162" fill="none" stroke="#747b6f" stroke-width="9" stroke-linecap="round" stroke-dasharray="1 24"/>
+  <g fill="#fff" stroke="#191917" stroke-width="6">
+    <circle cx="209" cy="148" r="36"/>
+    <circle cx="506" cy="348" r="42"/>
+    <circle cx="744" cy="482" r="34"/>
+    <circle cx="662" cy="135" r="31"/>
+  </g>
+  <g fill="#357c95">
+    <path d="M209 127l10 18 20 3-15 14 4 20-19-9-18 9 3-20-15-14 20-3z"/>
+    <rect x="481" y="326" width="50" height="44" rx="8"/>
+    <path d="M744 458l28 45h-56z"/>
+    <circle cx="662" cy="135" r="14"/>
+  </g>
+  <g fill="#191917" opacity=".72">
+    <rect x="128" y="256" width="96" height="28" rx="6"/>
+    <rect x="392" y="94" width="136" height="28" rx="6"/>
+    <rect x="692" y="306" width="120" height="28" rx="6"/>
+    <rect x="280" y="478" width="154" height="28" rx="6"/>
+  </g>
+</svg>
