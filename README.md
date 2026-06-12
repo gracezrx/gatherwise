@@ -2,6 +2,8 @@
 
 Gatherwise is a Next.js MVP for agentic social planning. It collects group, category-based occasion/activity intent, location, date/time, budget, dietary, cuisine, and vibe constraints; generates ranked restaurant/activity plans; lets the user approve or reject plans; then handles booking through a safe handoff flow.
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgracezrx%2Fgatherwise&project-name=gatherwise&repository-name=gatherwise&env=GOOGLE_PLACES_API_KEY,NEXT_PUBLIC_GATHERWISE_CANONICAL_URL&envDescription=Google%20Places%20stays%20private%20on%20the%20server.%20Use%20the%20canonical%20URL%20for%20share%20metadata.&envLink=https%3A%2F%2Fgithub.com%2Fgracezrx%2Fgatherwise%23share-or-deploy)
+
 When a Google Places API key is configured, restaurant and activity discovery uses live Google Places Text Search results around the user's resolved location. The app can resolve global cities, neighborhoods, landmarks, and addresses, and asks the user to choose when a location name is ambiguous. Reservations use a safe handoff flow: Gatherwise resolves the exact restaurant location, checks reservation sources, and opens the best external link for the user to finish manually.
 
 ## Run Locally
