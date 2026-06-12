@@ -2,7 +2,7 @@
 
 Gatherwise is a Next.js MVP for agentic social planning. It collects group, category-based occasion/activity intent, location, date/time, budget, dietary, cuisine, and vibe constraints; generates ranked restaurant/activity plans; lets the user approve or reject plans; then handles booking through a safe handoff flow.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgracezrx%2Fgatherwise&project-name=gatherwise&repository-name=gatherwise&env=GOOGLE_PLACES_API_KEY,NEXT_PUBLIC_GATHERWISE_CANONICAL_URL&envDescription=Google%20Places%20stays%20private%20on%20the%20server.%20Use%20the%20canonical%20URL%20for%20share%20metadata.&envLink=https%3A%2F%2Fgithub.com%2Fgracezrx%2Fgatherwise%23share-or-deploy)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgracezrx%2Fgatherwise&project-name=gatherwise&repository-name=gatherwise&env=GOOGLE_PLACES_API_KEY,NEXT_PUBLIC_GATHERWISE_CANONICAL_URL,KV_REST_API_URL,KV_REST_API_TOKEN&envDescription=Google%20Places%20stays%20private%20on%20the%20server.%20KV%2FUpstash%20keeps%20planning%20sessions%20and%20dashboard%20places%20durable.&envLink=https%3A%2F%2Fgithub.com%2Fgracezrx%2Fgatherwise%23share-or-deploy)
 
 When a Google Places API key is configured, restaurant and activity discovery uses live Google Places Text Search results around the user's resolved location. The app can resolve global cities, neighborhoods, landmarks, and addresses, and asks the user to choose when a location name is ambiguous. Reservations use a safe handoff flow: Gatherwise resolves the exact restaurant location, checks reservation sources, and opens the best external link for the user to finish manually.
 
@@ -46,19 +46,20 @@ Required production settings:
 
 - `GOOGLE_PLACES_API_KEY`: private server-side environment variable.
 - `NEXT_PUBLIC_GATHERWISE_CANONICAL_URL`: public app URL, for example `https://gracezrx.gatherwise.com`.
+- `KV_REST_API_URL` and `KV_REST_API_TOKEN`: hosted persistence for Vercel KV or Upstash Redis. `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` also work.
 
 Important deployment notes:
 
 - Do not commit files in `work/`; they can contain local sessions, cached locations, and private provider settings.
 - The `/api/provider-config` write shortcut is local-only. On a shared website, API keys must be configured in the hosting provider's environment settings.
-- Current persistence uses `work/social-planner-db.json`. This works well locally and on hosts with persistent disk, but Vercel-style serverless deployments need a real database such as Vercel Postgres, Neon, or Supabase before user sessions and dashboards are durable.
+- Local persistence uses `work/social-planner-db.json`. Shared deployments should set the Redis/KV env vars above so planning sessions and dashboards survive refreshes and serverless function changes.
 - Custom domains require DNS control. `gracezrx.gatherwise.com` can only work if you control `gatherwise.com` and point that subdomain to the deployed app.
 
 ## Public Readiness Checklist
 
 - Create a GitHub repo for this app.
 - Add production environment variables in the hosting provider.
-- Replace local JSON persistence with hosted Postgres/Supabase/Neon for durable shared use.
+- Add hosted persistence with Vercel KV or Upstash Redis REST credentials.
 - Deploy the Next.js app.
 - Add the custom domain after DNS is available.
 - Link the deployed app from the portfolio site.
@@ -84,7 +85,7 @@ Important deployment notes:
   - labels walk-in-friendly dessert/cafe spots as no booking needed
 - Booking status page with attempt history and checked reservation sources.
 - Mock confirmation page for successful bookings.
-- Simple local JSON DB in `work/social-planner-db.json`.
+- Simple local JSON DB in `work/social-planner-db.json`, with optional Vercel KV/Upstash Redis REST storage for shared deployments.
 
 ## Provider Architecture
 
@@ -138,6 +139,6 @@ Ranking is separate from UI in `lib/services/ranking.ts`. It scores candidate re
 - Availability and booking are deterministic mock decisions, not live inventory.
 - Live reservation times are shown only when they come from safe official/structured sources. OpenTable, Resy, and Google booking pages are not scraped or automated.
 - Gatherwise cannot log in, pay deposits, or complete reservations on third-party sites. It can prepare the right link and let the user mark the booking as completed.
-- Local persistence is a simple JSON file, not production-grade storage for serverless deployments.
+- Local persistence is a simple JSON file. Configure Vercel KV or Upstash Redis for durable shared deployments.
 - No emails, payments, deposits, calendar invites, or account auth are included.
 - Future official API adapters need provider-specific compliance review and API credentials.

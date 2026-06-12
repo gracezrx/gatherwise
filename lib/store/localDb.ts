@@ -22,6 +22,91 @@ interface LocalDbShape {
 
 const DB_DIR = path.join(process.cwd(), "work");
 const DB_FILE = path.join(DB_DIR, "social-planner-db.json");
+const REMOTE_DB_KEY = process.env.GATHERWISE_REDIS_KEY ?? "gatherwise:db:v1";
+
+type StorageMode = "local-json" | "upstash-redis";
+
+interface RedisRestResponse<T> {
+  result?: T;
+  error?: string;
+}
+
+function emptyDb(): LocalDbShape {
+  return { sessions: {}, places: {} };
+}
+
+function normalizeDbShape(db: Partial<LocalDbShape>): LocalDbShape {
+  return {
+    sessions: db.sessions ?? {},
+    places: normalizePlaces(db.places ?? {})
+  };
+}
+
+function getRedisRestConfig() {
+  const url = (
+    process.env.KV_REST_API_URL ??
+    process.env.UPSTASH_REDIS_REST_URL ??
+    ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
+  const token = (
+    process.env.KV_REST_API_TOKEN ??
+    process.env.UPSTASH_REDIS_REST_TOKEN ??
+    ""
+  ).trim();
+
+  return url && token ? { url, token } : undefined;
+}
+
+function redisHeaders(token: string) {
+  return {
+    authorization: `Bearer ${token}`
+  };
+}
+
+async function readRemoteDb(config: { url: string; token: string }): Promise<LocalDbShape> {
+  const response = await fetch(`${config.url}/get/${encodeURIComponent(REMOTE_DB_KEY)}`, {
+    headers: redisHeaders(config.token),
+    cache: "no-store"
+  });
+
+  const payload = (await response.json()) as RedisRestResponse<string | null>;
+
+  if (!response.ok || payload.error) {
+    throw new Error(payload.error ?? "Unable to read Gatherwise remote storage.");
+  }
+
+  if (!payload.result) {
+    return emptyDb();
+  }
+
+  return normalizeDbShape(JSON.parse(payload.result) as Partial<LocalDbShape>);
+}
+
+async function writeRemoteDb(
+  config: { url: string; token: string },
+  db: LocalDbShape
+) {
+  const response = await fetch(`${config.url}/set/${encodeURIComponent(REMOTE_DB_KEY)}`, {
+    method: "POST",
+    headers: {
+      ...redisHeaders(config.token),
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(db)
+  });
+
+  const payload = (await response.json()) as RedisRestResponse<string>;
+
+  if (!response.ok || payload.error) {
+    throw new Error(payload.error ?? "Unable to write Gatherwise remote storage.");
+  }
+}
+
+export function getDbStorageMode(): StorageMode {
+  return getRedisRestConfig() ? "upstash-redis" : "local-json";
+}
 
 function dbPath() {
   return DB_FILE;
@@ -42,16 +127,25 @@ async function ensureDb() {
 }
 
 async function readDb(): Promise<LocalDbShape> {
+  const redisConfig = getRedisRestConfig();
+
+  if (redisConfig) {
+    return readRemoteDb(redisConfig);
+  }
+
   await ensureDb();
   const raw = await fs.readFile(dbPath(), "utf8");
-  const parsed = JSON.parse(raw) as Partial<LocalDbShape>;
-  return {
-    sessions: parsed.sessions ?? {},
-    places: normalizePlaces(parsed.places ?? {})
-  };
+  return normalizeDbShape(JSON.parse(raw) as Partial<LocalDbShape>);
 }
 
 async function writeDb(db: LocalDbShape) {
+  const redisConfig = getRedisRestConfig();
+
+  if (redisConfig) {
+    await writeRemoteDb(redisConfig, db);
+    return;
+  }
+
   await ensureDb();
   await fs.writeFile(dbPath(), JSON.stringify(db, null, 2), "utf8");
 }

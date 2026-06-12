@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getProviderConfigStatus } from "@/lib/store/providerConfig";
+import { getDbStorageMode } from "@/lib/store/localDb";
 
 export async function GET() {
   const providerStatus = await getProviderConfigStatus();
@@ -8,6 +9,6 @@ export async function GET() {
     ok: true,
     app: "Gatherwise",
     googlePlacesConfigured: providerStatus.googlePlaces.configured,
-    storage: "local-json"
+    storage: getDbStorageMode()
   });
 }
