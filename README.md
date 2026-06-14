@@ -45,7 +45,7 @@ For a shareable deployment, use a real Next.js host such as Vercel, Render, or R
 Required production settings:
 
 - `GOOGLE_PLACES_API_KEY`: private server-side environment variable.
-- `NEXT_PUBLIC_GATHERWISE_CANONICAL_URL`: public app URL, for example `https://gracezrx.gatherwise.com`.
+- `NEXT_PUBLIC_GATHERWISE_CANONICAL_URL`: public app URL, for example `https://gatherwise.gracezrx.com`.
 - `KV_REST_API_URL` and `KV_REST_API_TOKEN`: hosted persistence for Vercel KV or Upstash Redis. `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` also work.
 
 Important deployment notes:
@@ -53,7 +53,7 @@ Important deployment notes:
 - Do not commit files in `work/`; they can contain local sessions, cached locations, and private provider settings.
 - The `/api/provider-config` write shortcut is local-only. On a shared website, API keys must be configured in the hosting provider's environment settings. Production code ignores local provider config files even if they exist.
 - Local persistence uses `work/social-planner-db.json`. Vercel deployments without Redis/KV use temporary server storage so the app can run, but shared deployments should set the Redis/KV env vars above so planning sessions and dashboards survive cold starts and serverless function changes.
-- Custom domains require DNS control. `gracezrx.gatherwise.com` can only work if you control `gatherwise.com` and point that subdomain to the deployed app.
+- Custom domains require DNS control. For Grace's portfolio domain, use `gatherwise.gracezrx.com` and point the `gatherwise` DNS record to Vercel.
 
 ## Public Readiness Checklist
 
