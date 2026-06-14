@@ -45,45 +45,6 @@ function requestPayload(request: PlanningRequest) {
   };
 }
 
-function openHandoffLink(data: {
-  request?: PlanningRequest;
-  recommendations?: PlanRecommendation[];
-  booking?: {
-    state?: string;
-    attempts?: Array<{
-      planId: string;
-      status: string;
-      reservationDiscovery?: {
-        bestAction?: {
-          url?: string;
-          requiresUserAction?: boolean;
-        };
-      };
-    }>;
-  };
-}) {
-  if (data.booking?.state !== "needs_user_action") {
-    return;
-  }
-
-  const handoffAttempt = [...(data.booking.attempts ?? [])]
-    .reverse()
-    .find((attempt) => attempt.status === "needs_user_action");
-  const handoffPlan = data.recommendations?.find(
-    (plan) => plan.id === handoffAttempt?.planId
-  );
-  const handoffUrl =
-    handoffAttempt?.reservationDiscovery?.bestAction?.url ??
-    handoffPlan?.restaurant?.googleMapsUri ??
-    handoffPlan?.activity?.googleMapsUri ??
-    handoffPlan?.restaurant?.websiteUri ??
-    handoffPlan?.activity?.websiteUri;
-
-  if (handoffUrl) {
-    window.open(handoffUrl, "_blank", "noopener,noreferrer");
-  }
-}
-
 function BreakdownBar({ label, value }: { label: string; value: number }) {
   return (
     <div className="space-y-1">
@@ -604,9 +565,9 @@ export default function PlanReview({ requestId }: { requestId: string }) {
     }
   }
 
-  async function approveAndBook() {
+  async function approveAndContinue() {
     if (selectedPlanIds.length === 0) {
-      setError("Approve at least one plan before booking.");
+      setError("Approve at least one plan before continuing.");
       return;
     }
 
@@ -624,10 +585,9 @@ export default function PlanReview({ requestId }: { requestId: string }) {
         throw new Error(data.error ?? "Unable to start booking.");
       }
 
-      openHandoffLink(data);
       router.push(`/booking/${requestId}`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to start booking.");
+      setError(caught instanceof Error ? caught.message : "Unable to prepare next steps.");
     } finally {
       setActionLoading(false);
     }
@@ -693,7 +653,8 @@ export default function PlanReview({ requestId }: { requestId: string }) {
           <h1 className="display-title mt-1 text-5xl text-ink sm:text-7xl">Ranked plans</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
             The agent ranked options by what you asked for, group fit, capacity, distance, budget,
-            quality, and availability. Booking or confirmation only starts after you approve plans.
+            quality, and availability. After you approve, Gatherwise shows a next-step page first.
+            Nothing opens automatically.
           </p>
           {session.recommendations.length > 0 ? (
             <p className="mt-2 max-w-3xl text-sm font-bold text-stone-700">
@@ -773,12 +734,12 @@ export default function PlanReview({ requestId }: { requestId: string }) {
                 <button
                   type="button"
                   className="action-primary min-h-10"
-                  onClick={() => void approveAndBook()}
+                  onClick={() => void approveAndContinue()}
                   disabled={selectedCount === 0 || actionLoading}
-                  title="Approve selected and book"
+                  title="Approve selected and review next steps"
                 >
                   <CalendarCheck className="h-4 w-4" aria-hidden="true" />
-                  {actionLoading ? "Working..." : "Approve selected & book"}
+                  {actionLoading ? "Preparing..." : "Approve & review links"}
                 </button>
               </div>
             </div>

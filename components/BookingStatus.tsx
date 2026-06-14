@@ -122,30 +122,24 @@ function actionLinksFor({
     true
   );
 
-  const foundProviders = new Set(
-    (discovery?.sources ?? [])
-      .filter((source) => source.status === "found")
-      .map((source) => source.provider)
-  );
-
   for (const source of discovery?.sources ?? []) {
-    if (!source.url || !["found", "search_ready", "checked"].includes(source.status)) {
-      continue;
-    }
+    const isUnconfirmedProviderSearch =
+      (source.provider === "opentable" || source.provider === "resy") &&
+      source.status === "search_ready";
 
-    if (source.status === "search_ready" && foundProviders.has(source.provider)) {
+    if (
+      !source.url ||
+      isUnconfirmedProviderSearch ||
+      !["found", "checked"].includes(source.status)
+    ) {
       continue;
     }
 
     const label =
       source.provider === "opentable"
-        ? source.status === "search_ready"
-          ? "Search OpenTable"
-          : "Open OpenTable"
+        ? "Open OpenTable"
         : source.provider === "resy"
-          ? source.status === "search_ready"
-            ? "Search Resy"
-            : "Open Resy"
+          ? "Open Resy"
           : source.provider === "google_places"
             ? "Open Google"
             : source.label;
@@ -354,12 +348,20 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
     <PageShell compact>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="editorial-kicker">Booking status</p>
+          <p className="editorial-kicker">
+            {payload.booking.state === "needs_user_action"
+              ? "Booking landing page"
+              : "Booking status"}
+          </p>
           <h1 className="display-title mt-1 text-5xl text-ink sm:text-7xl">
-            Fallback attempt history
+            {payload.booking.state === "needs_user_action"
+              ? "Choose where to continue"
+              : "Fallback attempt history"}
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
-            Approved plans were tried in your booking order. The same request can be refreshed without creating duplicate attempts.
+            {payload.booking.state === "needs_user_action"
+              ? "Nothing opens automatically. Pick the official website, Maps, phone, or a confirmed reservation link when one is available."
+              : "Approved plans were tried in your booking order. The same request can be refreshed without creating duplicate attempts."}
           </p>
         </div>
         <BookingStateBadge state={payload.booking.state} />
@@ -392,6 +394,61 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
         </div>
       </div>
 
+      {payload.booking.state === "needs_user_action" && handoffPlan ? (
+        <div className="motion-panel mb-5 border-coral/20 bg-cloud p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="editorial-kicker">Next step</p>
+              <h2 className="display-title mt-1 text-4xl text-ink">
+                {handoffIsActivityOnly
+                  ? `Open details for ${handoffName}`
+                  : handoffGuidance?.need === "walk_in_likely"
+                    ? `No booking needed for ${handoffName}`
+                    : `Choose a booking link for ${handoffName}`}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-700">
+                Use one of these links yourself. Gatherwise will not send you straight to an
+                outside site, and OpenTable or Resy only show here when a direct provider link was
+                found.
+              </p>
+            </div>
+            <BookingStateBadge state="needs_user_action" />
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {handoffActionLinks.map((actionLink) => {
+              const Icon = iconForProvider(actionLink.provider);
+              return (
+                <a
+                  key={actionLink.key}
+                  href={actionLink.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`${
+                    actionLink.primary ? "action-primary" : "action-secondary"
+                  } justify-center`}
+                >
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                  {actionLink.label}
+                  {actionLink.url.startsWith("tel:") ? null : (
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </a>
+              );
+            })}
+            <button
+              type="button"
+              className="action-primary justify-center disabled:cursor-wait"
+              disabled={actionLoading}
+              onClick={() => void markManualBooked(handoffPlan.id)}
+            >
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              {actionLoading ? "Saving..." : handoffGuidance?.actionLabel ?? "I'm set"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {payload.booking.attempts.length === 0 ? (
         <div className="motion-panel border-flax p-6">
           <p className="font-black text-ink">No booking attempts yet.</p>
@@ -407,14 +464,22 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
           </Link>
         </div>
       ) : (
-        <div className="grid gap-3">
-          {payload.booking.attempts.map((attempt) => (
-            <AttemptRow
-              key={attempt.id}
-              attempt={attempt}
-              plan={planById.get(attempt.planId)}
-            />
-          ))}
+        <div className="mt-6">
+          <div className="mb-3">
+            <p className="text-sm font-black text-ink">Attempt history</p>
+            <p className="text-xs font-semibold text-stone-500">
+              This is the transparent log of what Gatherwise checked.
+            </p>
+          </div>
+          <div className="grid gap-3">
+            {payload.booking.attempts.map((attempt) => (
+              <AttemptRow
+                key={attempt.id}
+                attempt={attempt}
+                plan={planById.get(attempt.planId)}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -423,7 +488,7 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="editorial-kicker">
-                {handoffIsActivityOnly ? "Plan handoff" : "Reservation handoff"}
+                {handoffIsActivityOnly ? "Plan details" : "Reservation details"}
               </p>
               <h2 className="display-title mt-1 text-4xl text-ink">
                 {handoffIsActivityOnly
