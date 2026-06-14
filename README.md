@@ -51,7 +51,7 @@ Required production settings:
 Important deployment notes:
 
 - Do not commit files in `work/`; they can contain local sessions, cached locations, and private provider settings.
-- The `/api/provider-config` write shortcut is local-only. On a shared website, API keys must be configured in the hosting provider's environment settings.
+- The `/api/provider-config` write shortcut is local-only. On a shared website, API keys must be configured in the hosting provider's environment settings. Production code ignores local provider config files even if they exist.
 - Local persistence uses `work/social-planner-db.json`. Vercel deployments without Redis/KV use temporary server storage so the app can run, but shared deployments should set the Redis/KV env vars above so planning sessions and dashboards survive cold starts and serverless function changes.
 - Custom domains require DNS control. `gracezrx.gatherwise.com` can only work if you control `gatherwise.com` and point that subdomain to the deployed app.
 

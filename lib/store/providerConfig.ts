@@ -25,6 +25,10 @@ export function canSaveGooglePlacesApiKeyLocally() {
 }
 
 async function readProviderConfig(): Promise<StoredProviderConfig> {
+  if (!canSaveGooglePlacesApiKeyLocally()) {
+    return {};
+  }
+
   try {
     const raw = await readFile(CONFIG_FILE, "utf8");
     return JSON.parse(raw) as StoredProviderConfig;
