@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -133,6 +132,36 @@ function toggle<T extends string>(items: T[], value: T) {
 function resizeNeighborhoods(values: string[] | undefined, count: number) {
   const current = values?.length ? values : ["Downtown Palo Alto"];
   return Array.from({ length: count }, (_, index) => current[index] ?? "");
+}
+
+function locationPreviewQuery(draft: Draft) {
+  if (draft.location.strategy === "from_host") {
+    return draft.location.hostNeighborhood?.trim() || "Downtown Palo Alto";
+  }
+
+  if (draft.location.strategy === "between_attendees") {
+    const neighborhoods = resizeNeighborhoods(
+      draft.location.attendeeNeighborhoods,
+      draft.groupProfile.numberOfPeople
+    )
+      .map((neighborhood) => neighborhood.trim())
+      .filter(Boolean);
+
+    return neighborhoods.length
+      ? neighborhoods.join(", ")
+      : "Downtown Palo Alto";
+  }
+
+  return draft.location.targetNeighborhood?.trim() || "Downtown Palo Alto";
+}
+
+function googleMapEmbedUrl(query: string) {
+  const params = new URLSearchParams({
+    q: query,
+    output: "embed"
+  });
+
+  return `https://www.google.com/maps?${params.toString()}`;
 }
 
 function ChoiceChips<T extends string>({
@@ -1190,16 +1219,19 @@ export default function PlannerWizard() {
 
           <aside className="motion-panel min-w-0 self-start p-4 xl:sticky xl:top-6">
           <div className="relative overflow-hidden rounded-lg border border-white/75 bg-mist shadow-sm">
-            <Image
-              src="/neighborhood-map.svg"
-              alt="Stylized neighborhood map with venues and route markers"
-              width={960}
-              height={640}
-              priority
-              className="h-auto w-full"
+            <iframe
+              key={locationPreviewQuery(draft)}
+              src={googleMapEmbedUrl(locationPreviewQuery(draft))}
+              title={`${t("locationMap")}: ${locationPreviewQuery(draft)}`}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="aspect-[3/2] w-full border-0"
             />
             <div className="absolute left-3 top-3 rounded-lg border border-white/80 bg-white/75 px-3 py-2 text-xs font-black uppercase text-ink shadow-sm backdrop-blur">
-              {t("paloAltoCanvas")}
+              {t("locationMap")}
+            </div>
+            <div className="absolute bottom-3 left-3 right-3 rounded-lg border border-white/80 bg-white/80 px-3 py-2 text-xs font-bold text-stone-600 shadow-sm backdrop-blur">
+              {locationPreviewQuery(draft)}
             </div>
           </div>
           <div className="mt-5 space-y-4">
