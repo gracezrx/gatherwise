@@ -293,7 +293,14 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
             return;
           }
 
-          setError(caught instanceof Error ? caught.message : "Unable to load booking status.");
+          const message =
+            caught instanceof Error ? caught.message : "Unable to load booking details.";
+
+          setError(
+            message === "Planning request not found"
+              ? "Booking details not found."
+              : message
+          );
         }
       })
       .finally(() => {
