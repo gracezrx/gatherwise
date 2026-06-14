@@ -717,7 +717,7 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
               href={`/confirmation/${requestId}`}
               className="action-primary group"
             >
-              View confirmation
+              View shareable plan
               <ArrowRight className="motion-arrow h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
