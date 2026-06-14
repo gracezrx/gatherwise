@@ -50,6 +50,30 @@ const SOURCE_STATUS_LABELS: Record<ReservationSourceStatus, string> = {
   not_needed: "Not needed"
 };
 
+function bookingHeading(state: BookingSummary["state"], hasConfirmation: boolean) {
+  if (hasConfirmation) return "Plan is set";
+  if (state === "needs_user_action") return "Choose your booking link";
+  if (state === "unavailable" || state === "failed") return "Try another option";
+  if (state === "booked") return "Plan is set";
+  return "Booking details";
+}
+
+function bookingIntro(state: BookingSummary["state"], hasConfirmation: boolean) {
+  if (hasConfirmation) {
+    return "This plan has been saved. You can open the shareable plan page and send it to the group.";
+  }
+
+  if (state === "needs_user_action") {
+    return "Gatherwise found the best next links. Nothing opens automatically, so choose the official website, Maps, phone, or confirmed booking link yourself.";
+  }
+
+  if (state === "unavailable" || state === "failed") {
+    return "The approved options did not produce a clean booking path. You can go back, choose another plan, or adjust the request.";
+  }
+
+  return "Gatherwise is checking the approved plans. The technical check log is optional and kept lower on the page.";
+}
+
 function iconForProvider(provider: ReservationSourceProvider) {
   if (provider === "phone") return Phone;
   if (provider === "maps" || provider === "google_places") return MapPin;
@@ -193,34 +217,47 @@ function AttemptRow({
   const guidance = plan ? getReservationGuidance(plan) : undefined;
   const timeFit = plan?.restaurant?.timeFit ?? plan?.activity?.timeFit;
   const displayName = plan?.restaurant?.name ?? plan?.activity?.name ?? "Plan unavailable";
+  const stepTitle =
+    attempt.status === "checking_availability"
+      ? "Checked this option"
+      : attempt.status === "needs_user_action"
+        ? "Ready for you"
+        : attempt.status === "unavailable"
+          ? "Unavailable"
+          : attempt.status === "booked"
+            ? "Saved"
+            : attempt.status === "failed"
+              ? "Could not finish"
+              : "Booking check";
   const displayMessage =
-    attempt.reservationDiscovery?.summary ??
-    (attempt.provider === "handoff" &&
-    attempt.status === "needs_user_action" &&
-    guidance
-      ? `${guidance.label}. ${guidance.detail}${
-          timeFit ? ` ${timeFit.label}: ${timeFit.detail}` : ""
-        }`
-      : attempt.message);
+    attempt.status === "needs_user_action" && guidance
+      ? `${guidance.label}. ${
+          guidance.need === "walk_in_likely"
+            ? "No booking is needed; use the links for directions or details."
+            : "Use one of the links above to finish or confirm this plan."
+        }${timeFit ? ` ${timeFit.label}.` : ""}`
+      : attempt.status === "checking_availability"
+        ? "Gatherwise checked whether this approved plan had a clear booking or confirmation path."
+        : attempt.reservationDiscovery?.summary ?? attempt.message;
 
   return (
-    <div className="interactive-card grid gap-3 p-4 sm:grid-cols-[150px_minmax(0,1fr)_130px] sm:items-start">
+    <div className="rounded-lg border border-ink/10 bg-white/75 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p className="text-xs font-black uppercase text-stone-500">Rank {attempt.planRank}</p>
+          <p className="text-xs font-black uppercase text-coral">{stepTitle}</p>
         <p className="mt-1 text-sm font-bold text-ink">
-          {displayName}
+            Rank {attempt.planRank}: {displayName}
         </p>
       </div>
-      <div>
+        <BookingStateBadge state={attempt.status} />
+      </div>
+      <div className="mt-3">
         <p className="text-sm leading-6 text-stone-700">{displayMessage}</p>
         {plan?.restaurant && plan.activity ? (
           <p className="mt-1 text-xs font-semibold text-stone-500">
             Includes {plan.activity.name}
           </p>
         ) : null}
-      </div>
-      <div className="sm:justify-self-end">
-        <BookingStateBadge state={attempt.status} />
       </div>
     </div>
   );
@@ -341,7 +378,7 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
         <div className="motion-panel p-6">
           <p className="flex items-center gap-2 text-sm font-bold text-stone-600">
             <CircleDashed className="h-4 w-4 animate-spin text-coral" aria-hidden="true" />
-            Loading booking history...
+            Loading booking details...
           </p>
         </div>
       </PageShell>
@@ -352,7 +389,7 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
     return (
       <PageShell compact>
         <div className="motion-panel p-6">
-          <p className="font-bold text-coral">{error ?? "Booking status not found."}</p>
+          <p className="font-bold text-coral">{error ?? "Booking details not found."}</p>
           <Link href="/" className="action-primary mt-4">
             Start over
           </Link>
@@ -368,19 +405,13 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="editorial-kicker">
-            {payload.booking.state === "needs_user_action"
-              ? "Booking landing page"
-              : "Booking status"}
+            Booking next steps
           </p>
           <h1 className="display-title mt-1 text-5xl text-ink sm:text-7xl">
-            {payload.booking.state === "needs_user_action"
-              ? "Choose where to continue"
-              : "Fallback attempt history"}
+            {bookingHeading(payload.booking.state, Boolean(confirmation))}
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
-            {payload.booking.state === "needs_user_action"
-              ? "Nothing opens automatically. Pick the official website, Maps, phone, or a confirmed reservation link when one is available."
-              : "Approved plans were tried in your booking order. The same request can be refreshed without creating duplicate attempts."}
+            {bookingIntro(payload.booking.state, Boolean(confirmation))}
           </p>
         </div>
         <BookingStateBadge state={payload.booking.state} />
@@ -470,7 +501,7 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
 
       {payload.booking.attempts.length === 0 ? (
         <div className="motion-panel border-flax p-6">
-          <p className="font-black text-ink">No booking attempts yet.</p>
+          <p className="font-black text-ink">No booking check started yet.</p>
           <p className="mt-2 text-sm text-stone-600">
             Return to review and approve one or more ranked plans.
           </p>
@@ -483,14 +514,19 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
           </Link>
         </div>
       ) : (
-        <div className="mt-6">
-          <div className="mb-3">
-            <p className="text-sm font-black text-ink">Attempt history</p>
-            <p className="text-xs font-semibold text-stone-500">
-              This is the transparent log of what Gatherwise checked.
-            </p>
-          </div>
-          <div className="grid gap-3">
+        <details className="motion-panel mt-6 p-4">
+          <summary className="cursor-pointer list-none">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-ink">What Gatherwise checked</p>
+                <p className="text-xs font-semibold text-stone-500">
+                  Optional details. Open this if you want the exact booking checks.
+                </p>
+              </div>
+              <span className="text-xs font-black uppercase text-coral">Show details</span>
+            </div>
+          </summary>
+          <div className="mt-4 grid gap-3">
             {payload.booking.attempts.map((attempt) => (
               <AttemptRow
                 key={attempt.id}
@@ -499,11 +535,23 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
               />
             ))}
           </div>
-        </div>
+        </details>
       )}
 
       {payload.booking.state === "needs_user_action" && handoffPlan ? (
-        <div className="motion-panel mt-6 border-flax bg-flax/20 p-5">
+        <details className="motion-panel mt-6 border-flax bg-flax/20 p-5">
+          <summary className="cursor-pointer list-none">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-ink">Why these links?</p>
+                <p className="text-xs font-semibold text-stone-600">
+                  Optional. This explains the matching, hours, and sources Gatherwise checked.
+                </p>
+              </div>
+              <span className="text-xs font-black uppercase text-coral">Show explanation</span>
+            </div>
+          </summary>
+          <div className="mt-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="editorial-kicker">
@@ -695,7 +743,8 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
               </div>
             </div>
           ) : null}
-        </div>
+          </div>
+        </details>
       ) : null}
 
       {confirmation ? (
