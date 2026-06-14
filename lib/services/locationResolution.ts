@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
+import os from "os";
 import path from "path";
 import { getGooglePlacesApiKey } from "@/lib/store/providerConfig";
 import type {
@@ -17,7 +18,10 @@ const FIELD_MASK = [
   "places.types",
   "places.timeZone"
 ].join(",");
-const CACHE_DIR = path.join(process.cwd(), "work");
+const CACHE_DIR =
+  process.env.VERCEL === "1"
+    ? path.join(os.tmpdir(), "gatherwise")
+    : path.join(process.cwd(), "work");
 const CACHE_FILE = path.join(CACHE_DIR, "google-location-cache.json");
 
 type GoogleAddressComponent = {
