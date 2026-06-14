@@ -185,16 +185,24 @@ function statusCopy({
 }
 
 function groupchatText(snapshot: Omit<SharePlanSnapshot, "shareText">) {
+  const bookingEmoji =
+    snapshot.status === "no_booking_needed"
+      ? "🚶"
+      : snapshot.status === "booked" || snapshot.status === "confirmed"
+        ? "✅"
+        : snapshot.status === "needs_action"
+          ? "📝"
+          : "✨";
   const lines = [
-    "Gatherwise planned it:",
-    `Place: ${snapshot.placeName}`,
-    snapshot.activityName ? `Extra: ${snapshot.activityName}` : undefined,
-    `When: ${snapshot.dateLabel}`,
-    `Group: ${snapshot.partyLabel}`,
-    `Booking: ${snapshot.statusLabel}`,
-    `Cost: ${snapshot.costLabel}`,
-    snapshot.locationLabel ? `Location: ${snapshot.locationLabel}` : undefined,
-    snapshot.mapUrl ? `Map: ${snapshot.mapUrl}` : undefined
+    "✨ Gatherwise planned it ✨",
+    `📍 Place: ${snapshot.placeName}`,
+    snapshot.activityName ? `➕ Extra: ${snapshot.activityName}` : undefined,
+    `🗓 When: ${snapshot.dateLabel}`,
+    `👥 Group: ${snapshot.partyLabel}`,
+    `${bookingEmoji} Booking: ${snapshot.statusLabel}`,
+    `💸 Cost: ${snapshot.costLabel}`,
+    snapshot.locationLabel ? `📌 Location: ${snapshot.locationLabel}` : undefined,
+    snapshot.mapUrl ? `🗺 Map: ${snapshot.mapUrl}` : undefined
   ].filter(Boolean);
 
   return lines.join("\n");
@@ -317,6 +325,20 @@ function statusClass(status: ShareStatus) {
   return "border-ink/10 bg-white/75 text-stone-700";
 }
 
+function statusEmoji(status: ShareStatus) {
+  if (status === "no_booking_needed") return "🚶";
+  if (status === "booked" || status === "confirmed") return "✅";
+  if (status === "needs_action") return "📝";
+  return "✨";
+}
+
+function decoratedSnapshot(snapshot: SharePlanSnapshot): SharePlanSnapshot {
+  return {
+    ...snapshot,
+    shareText: groupchatText(snapshot)
+  };
+}
+
 export default function ConfirmationView({ requestId }: { requestId: string }) {
   const [payload, setPayload] = useState<BookingPayload | null>(null);
   const [sharedSnapshot, setSharedSnapshot] = useState<SharePlanSnapshot | undefined>();
@@ -371,7 +393,8 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
   }, [requestId]);
 
   const snapshot = useMemo(() => {
-    return payload ? buildSnapshot(payload) : sharedSnapshot;
+    const nextSnapshot = payload ? buildSnapshot(payload) : sharedSnapshot;
+    return nextSnapshot ? decoratedSnapshot(nextSnapshot) : undefined;
   }, [payload, sharedSnapshot]);
 
   async function copyText(value: string, type: "text" | "link" | "share") {
@@ -444,27 +467,40 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
       <div className="mx-auto max-w-5xl">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="editorial-kicker">Shareable plan</p>
+            <p className="editorial-kicker">Shareable plan ✨</p>
             <h1 className="display-title mt-1 text-5xl text-ink sm:text-7xl">
-              Successfully planned
+              Successfully planned 🎉
             </h1>
           </div>
           <span
-            className={`inline-flex min-h-9 w-fit items-center gap-2 rounded-lg border px-3 text-sm font-black ${statusClass(
+            className={`inline-flex min-h-9 w-fit items-center gap-2 rounded-lg border px-3 text-sm font-black shadow-sm ${statusClass(
               snapshot.status
             )}`}
           >
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            <span aria-hidden="true">{statusEmoji(snapshot.status)}</span>
             {snapshot.statusLabel}
           </span>
         </div>
 
         <section className="motion-panel overflow-hidden p-0">
-          <div className="relative bg-gradient-to-br from-coral/20 via-cloud to-sage p-5 sm:p-7">
-            <div className="absolute right-5 top-5 hidden h-20 w-20 rounded-full border border-coral/30 sm:block" />
-            <div className="absolute bottom-6 right-16 hidden h-10 w-10 rounded-full border border-moss/25 sm:block" />
+          <div className="relative bg-gradient-to-br from-coral/25 via-cloud to-sage p-5 sm:p-7">
+            <div className="absolute right-5 top-5 hidden h-20 w-20 rounded-full border border-coral/30 bg-white/25 sm:block" />
+            <div className="absolute bottom-6 right-16 hidden h-10 w-10 rounded-full border border-moss/25 bg-white/25 sm:block" />
+            <div className="absolute right-8 top-8 hidden rotate-6 rounded-lg border border-white/70 bg-white/80 px-3 py-2 text-2xl shadow-sm sm:block">
+              ✨
+            </div>
+            <div className="absolute bottom-8 right-28 hidden -rotate-6 rounded-lg border border-white/70 bg-white/80 px-3 py-2 text-xl shadow-sm sm:block">
+              🗓
+            </div>
             <div className="relative">
-              <p className="text-xs font-black uppercase text-coral">Gatherwise plan card</p>
+              <div className="mb-4 flex flex-wrap gap-2">
+                <span className="rounded-lg border border-white/70 bg-white/75 px-3 py-1 text-xs font-black uppercase text-coral shadow-sm">
+                  Gatherwise plan card
+                </span>
+                <span className="rounded-lg border border-white/70 bg-white/75 px-3 py-1 text-xs font-black uppercase text-moss shadow-sm">
+                  Ready for groupchat
+                </span>
+              </div>
               <h2 className="display-title mt-2 max-w-3xl text-5xl text-ink sm:text-7xl">
                 {snapshot.placeName}
               </h2>
@@ -476,6 +512,17 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
               <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-700">
                 {snapshot.statusDetail}
               </p>
+              <div className="mt-5 flex flex-wrap gap-2 text-xs font-black uppercase">
+                <span className="rounded-lg bg-white/75 px-3 py-1 text-ink shadow-sm">
+                  📍 {snapshot.locationLabel ?? "Location set"}
+                </span>
+                <span className="rounded-lg bg-white/75 px-3 py-1 text-ink shadow-sm">
+                  👥 {snapshot.partyLabel}
+                </span>
+                <span className="rounded-lg bg-white/75 px-3 py-1 text-ink shadow-sm">
+                  {statusEmoji(snapshot.status)} {snapshot.statusLabel}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -483,7 +530,7 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
             <div className="border-b border-ink/10 p-4 md:border-r">
               <p className="flex items-center gap-2 text-sm font-black text-ink">
                 <CalendarClock className="h-4 w-4 text-coral" aria-hidden="true" />
-                When
+                🗓 When
               </p>
               <p className="mt-2 text-sm font-semibold text-stone-700">
                 {snapshot.dateLabel}
@@ -492,7 +539,7 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
             <div className="border-b border-ink/10 p-4">
               <p className="flex items-center gap-2 text-sm font-black text-ink">
                 <Users className="h-4 w-4 text-coral" aria-hidden="true" />
-                Who
+                👥 Who
               </p>
               <p className="mt-2 text-sm font-semibold text-stone-700">
                 {snapshot.partyLabel}
@@ -501,7 +548,7 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
             <div className="border-b border-ink/10 p-4 md:border-r md:border-b-0">
               <p className="flex items-center gap-2 text-sm font-black text-ink">
                 <DollarSign className="h-4 w-4 text-coral" aria-hidden="true" />
-                Estimate
+                💸 Estimate
               </p>
               <p className="mt-2 text-sm font-semibold text-stone-700">
                 {snapshot.costLabel}
@@ -510,7 +557,7 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
             <div className="p-4">
               <p className="flex items-center gap-2 text-sm font-black text-ink">
                 <PartyPopper className="h-4 w-4 text-coral" aria-hidden="true" />
-                Occasion
+                🎉 Occasion
               </p>
               <p className="mt-2 text-sm font-semibold text-stone-700">
                 {snapshot.occasionLabel}
@@ -524,9 +571,9 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
           <section className="motion-panel p-5">
             <p className="flex items-center gap-2 text-sm font-black text-ink">
               <Sparkles className="h-4 w-4 text-coral" aria-hidden="true" />
-              Groupchat version
+              Groupchat version ✨
             </p>
-            <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-ink/10 bg-white/75 p-4 text-sm leading-6 text-stone-700">
+            <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-coral/20 bg-gradient-to-br from-white/90 to-coral/10 p-4 text-sm leading-6 text-stone-700 shadow-sm">
               {snapshot.shareText}
             </pre>
             {snapshot.confirmationCode ? (
@@ -537,7 +584,7 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
           </section>
 
           <aside className="motion-panel p-5">
-            <p className="text-sm font-black text-ink">Send it</p>
+            <p className="text-sm font-black text-ink">Send it 💌</p>
             <div className="mt-3 grid gap-2">
               <button
                 type="button"
@@ -545,7 +592,7 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
                 onClick={() => void sharePlan()}
               >
                 <Share2 className="h-4 w-4" aria-hidden="true" />
-                {copied === "share" ? "Ready to send" : "Share plan"}
+                {copied === "share" ? "Ready to send ✨" : "Share plan"}
               </button>
               <button
                 type="button"
@@ -553,7 +600,7 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
                 onClick={() => void copyText(snapshot.shareText, "text")}
               >
                 <Clipboard className="h-4 w-4" aria-hidden="true" />
-                {copied === "text" ? "Copied" : "Copy text"}
+                {copied === "text" ? "Copied ✨" : "Copy groupchat text"}
               </button>
               <button
                 type="button"
@@ -561,7 +608,7 @@ export default function ConfirmationView({ requestId }: { requestId: string }) {
                 onClick={() => void copyText(url, "link")}
               >
                 <Link2 className="h-4 w-4" aria-hidden="true" />
-                {copied === "link" ? "Copied" : "Copy share link"}
+                {copied === "link" ? "Copied ✨" : "Copy share link"}
               </button>
             </div>
 
