@@ -52,7 +52,7 @@ Important deployment notes:
 
 - Do not commit files in `work/`; they can contain local sessions, cached locations, and private provider settings.
 - The `/api/provider-config` write shortcut is local-only. On a shared website, API keys must be configured in the hosting provider's environment settings.
-- Local persistence uses `work/social-planner-db.json`. Shared deployments should set the Redis/KV env vars above so planning sessions and dashboards survive refreshes and serverless function changes.
+- Local persistence uses `work/social-planner-db.json`. Vercel deployments without Redis/KV use temporary server storage so the app can run, but shared deployments should set the Redis/KV env vars above so planning sessions and dashboards survive cold starts and serverless function changes.
 - Custom domains require DNS control. `gracezrx.gatherwise.com` can only work if you control `gatherwise.com` and point that subdomain to the deployed app.
 
 ## Public Readiness Checklist
@@ -139,6 +139,6 @@ Ranking is separate from UI in `lib/services/ranking.ts`. It scores candidate re
 - Availability and booking are deterministic mock decisions, not live inventory.
 - Live reservation times are shown only when they come from safe official/structured sources. OpenTable, Resy, and Google booking pages are not scraped or automated.
 - Gatherwise cannot log in, pay deposits, or complete reservations on third-party sites. It can prepare the right link and let the user mark the booking as completed.
-- Local persistence is a simple JSON file. Configure Vercel KV or Upstash Redis for durable shared deployments.
+- Local persistence is a simple JSON file. Vercel can run with temporary JSON storage for demos, but configure Vercel KV or Upstash Redis for durable shared deployments.
 - No emails, payments, deposits, calendar invites, or account auth are included.
 - Future official API adapters need provider-specific compliance review and API credentials.

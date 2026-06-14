@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import os from "os";
 import path from "path";
 import type {
   BookingAttempt,
@@ -20,11 +21,9 @@ interface LocalDbShape {
   places: Record<string, UserPlace>;
 }
 
-const DB_DIR = path.join(process.cwd(), "work");
-const DB_FILE = path.join(DB_DIR, "social-planner-db.json");
 const REMOTE_DB_KEY = process.env.GATHERWISE_REDIS_KEY ?? "gatherwise:db:v1";
 
-type StorageMode = "local-json" | "upstash-redis";
+type StorageMode = "local-json" | "ephemeral-json" | "upstash-redis";
 
 interface RedisRestResponse<T> {
   result?: T;
@@ -105,21 +104,39 @@ async function writeRemoteDb(
 }
 
 export function getDbStorageMode(): StorageMode {
-  return getRedisRestConfig() ? "upstash-redis" : "local-json";
+  if (getRedisRestConfig()) {
+    return "upstash-redis";
+  }
+
+  return process.env.VERCEL === "1" ? "ephemeral-json" : "local-json";
+}
+
+function getLocalDbPaths() {
+  const dbDir =
+    getDbStorageMode() === "ephemeral-json"
+      ? path.join(os.tmpdir(), "gatherwise")
+      : path.join(process.cwd(), "work");
+
+  return {
+    dbDir,
+    dbFile: path.join(dbDir, "social-planner-db.json")
+  };
 }
 
 function dbPath() {
-  return DB_FILE;
+  return getLocalDbPaths().dbFile;
 }
 
 async function ensureDb() {
-  await fs.mkdir(DB_DIR, { recursive: true });
+  const { dbDir, dbFile } = getLocalDbPaths();
+
+  await fs.mkdir(dbDir, { recursive: true });
 
   try {
-    await fs.access(DB_FILE);
+    await fs.access(dbFile);
   } catch {
     await fs.writeFile(
-      DB_FILE,
+      dbFile,
       JSON.stringify({ sessions: {}, places: {} }, null, 2),
       "utf8"
     );
