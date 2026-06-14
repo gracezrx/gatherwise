@@ -32,6 +32,7 @@ import {
   type Vibe
 } from "@/lib/types";
 import { LanguageToggle, useLanguage } from "./LanguageProvider";
+import { saveClientSession } from "@/lib/clientSessionStore";
 import { toTitle } from "@/lib/utils";
 
 type Draft = PlanningRequestInput;
@@ -696,6 +697,7 @@ export default function PlannerWizard() {
         throw new Error(message);
       }
 
+      saveClientSession(data);
       router.push(`/plans/${data.request.id}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to generate plans.");

@@ -19,6 +19,12 @@ import {
 } from "lucide-react";
 import PageShell from "./PageShell";
 import { AvailabilityBadge, BookingStateBadge } from "./StatusBadge";
+import {
+  getClientSession,
+  saveClientBookingPayload,
+  saveClientSession,
+  type ClientSessionView
+} from "@/lib/clientSessionStore";
 import type {
   PlanRecommendation,
   PlanningRequest,
@@ -27,7 +33,7 @@ import type {
 import { getReservationGuidance } from "@/lib/reservationGuidance";
 import { formatMoney, roundScore } from "@/lib/utils";
 
-type SessionView = StoredPlanningSession & {
+type SessionView = ClientSessionView & StoredPlanningSession & {
   noOptionsSuggestions: string[];
 };
 
@@ -489,10 +495,21 @@ export default function PlanReview({ requestId }: { requestId: string }) {
         if (data.error) {
           throw new Error(data.error);
         }
+        saveClientSession(data);
         setSession(data);
       })
       .catch((caught) => {
         if (!cancelled) {
+          const savedSession = getClientSession(requestId);
+
+          if (savedSession) {
+            setSession({
+              ...savedSession,
+              noOptionsSuggestions: savedSession.noOptionsSuggestions ?? []
+            });
+            return;
+          }
+
           setError(caught instanceof Error ? caught.message : "Unable to load plans.");
         }
       })
@@ -577,7 +594,11 @@ export default function PlanReview({ requestId }: { requestId: string }) {
       const response = await fetch("/api/booking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId, approvedPlanIds: selectedPlanIds })
+        body: JSON.stringify({
+          requestId,
+          approvedPlanIds: selectedPlanIds,
+          sessionSnapshot: session
+        })
       });
       const data = await response.json();
 
@@ -585,6 +606,7 @@ export default function PlanReview({ requestId }: { requestId: string }) {
         throw new Error(data.error ?? "Unable to start booking.");
       }
 
+      saveClientBookingPayload(data);
       router.push(`/booking/${requestId}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to prepare next steps.");

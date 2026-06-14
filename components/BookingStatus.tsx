@@ -17,6 +17,11 @@ import {
 } from "lucide-react";
 import PageShell from "./PageShell";
 import { BookingStateBadge } from "./StatusBadge";
+import {
+  applyClientManualConfirmation,
+  getClientBookingPayload,
+  saveClientBookingPayload
+} from "@/lib/clientSessionStore";
 import type {
   BookingSummary,
   PlanRecommendation,
@@ -239,10 +244,18 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
         if (data.error) {
           throw new Error(data.error);
         }
+        saveClientBookingPayload(data);
         setPayload(data);
       })
       .catch((caught) => {
         if (!cancelled) {
+          const savedPayload = getClientBookingPayload(requestId);
+
+          if (savedPayload) {
+            setPayload(savedPayload);
+            return;
+          }
+
           setError(caught instanceof Error ? caught.message : "Unable to load booking status.");
         }
       })
@@ -308,8 +321,14 @@ export default function BookingStatus({ requestId }: { requestId: string }) {
         throw new Error(data.error ?? "Unable to mark booking complete.");
       }
 
+      saveClientBookingPayload(data);
       setPayload(data);
     } catch (caught) {
+      if (payload) {
+        setPayload(applyClientManualConfirmation(payload, planId));
+        return;
+      }
+
       setError(caught instanceof Error ? caught.message : "Unable to mark booking complete.");
     } finally {
       setActionLoading(false);

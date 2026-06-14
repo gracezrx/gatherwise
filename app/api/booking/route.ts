@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getPlanningSessionView } from "@/lib/services/planning";
-import { bookApprovedPlans, confirmManualBooking } from "@/lib/services/booking";
+import {
+  bookApprovedPlans,
+  bookApprovedPlansFromSessionSnapshot,
+  confirmManualBooking
+} from "@/lib/services/booking";
+import type { StoredPlanningSession } from "@/lib/types";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -34,13 +39,32 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       requestId?: string;
       approvedPlanIds?: string[];
+      sessionSnapshot?: StoredPlanningSession;
     };
 
     if (!body.requestId) {
       return NextResponse.json({ error: "Missing request id" }, { status: 400 });
     }
 
-    const result = await bookApprovedPlans(body.requestId, body.approvedPlanIds ?? []);
+    let result;
+
+    try {
+      result = await bookApprovedPlans(body.requestId, body.approvedPlanIds ?? []);
+    } catch (error) {
+      if (
+        body.sessionSnapshot?.request.id === body.requestId &&
+        error instanceof Error &&
+        error.message === "Planning request not found"
+      ) {
+        result = await bookApprovedPlansFromSessionSnapshot(
+          body.sessionSnapshot,
+          body.approvedPlanIds ?? []
+        );
+      } else {
+        throw error;
+      }
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

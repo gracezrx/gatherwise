@@ -4,7 +4,8 @@ import type {
   BookingState,
   PlanRecommendation,
   PlanningRequest,
-  ReservationDiscovery
+  ReservationDiscovery,
+  StoredPlanningSession
 } from "@/lib/types";
 import { createId } from "@/lib/utils";
 import type {
@@ -306,6 +307,41 @@ export async function bookApprovedPlans(requestId: string, approvedPlanIds: stri
       state: saved.bookingState,
       attempts: saved.attempts,
       confirmation: saved.confirmation
+    }
+  };
+}
+
+export async function bookApprovedPlansFromSessionSnapshot(
+  session: StoredPlanningSession,
+  approvedPlanIds: string[]
+) {
+  const result = await runBookingFallback(
+    session.request,
+    session.recommendations,
+    approvedPlanIds
+  );
+
+  return {
+    request: session.request,
+    recommendations: session.recommendations.map((plan) => {
+      const lastAttempt = [...result.attempts]
+        .reverse()
+        .find((attempt) => attempt.planId === plan.id);
+
+      if (lastAttempt) {
+        return { ...plan, state: lastAttempt.status };
+      }
+
+      return approvedPlanIds.includes(plan.id)
+        ? { ...plan, state: "approved" as BookingState }
+        : plan;
+    }),
+    approvedPlanIds,
+    booking: {
+      requestId: session.request.id,
+      state: result.state,
+      attempts: result.attempts,
+      confirmation: result.confirmation
     }
   };
 }
