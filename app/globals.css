@@ -170,6 +170,12 @@ textarea:focus-visible {
   scroll-snap-align: start;
 }
 
+@media (max-width: 767px) {
+  .home-stage {
+    scroll-snap-type: none;
+  }
+}
+
 .brand-hero {
   position: relative;
   min-height: 100vh;

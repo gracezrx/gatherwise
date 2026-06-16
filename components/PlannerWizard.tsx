@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -46,40 +46,29 @@ function toDatetimeLocal(date: Date) {
 }
 
 function defaultDraft(): Draft {
-  const start = new Date();
-  start.setDate(start.getDate() + 3);
-  start.setHours(18, 30, 0, 0);
-  const end = new Date(start);
-  end.setHours(start.getHours() + 3);
-
   return {
     groupProfile: {
-      numberOfPeople: 4,
+      numberOfPeople: 0,
       typeOfPeople: "friends"
     },
     occasion: "dinner",
     location: {
       strategy: "target_neighborhood",
-      maxDistanceMiles: 2.5,
-      hostNeighborhood: "Downtown Palo Alto",
-      targetNeighborhood: "Downtown Palo Alto",
-      attendeeSpreadMiles: 4,
-      attendeeNeighborhoods: [
-        "Downtown Palo Alto",
-        "California Ave",
-        "Stanford",
-        "Professorville"
-      ]
+      maxDistanceMiles: 0,
+      hostNeighborhood: "",
+      targetNeighborhood: "",
+      attendeeSpreadMiles: 0,
+      attendeeNeighborhoods: []
     },
     timeWindow: {
-      start: toDatetimeLocal(start),
-      end: toDatetimeLocal(end)
+      start: "",
+      end: ""
     },
-    budgetPerPerson: 65,
+    budgetPerPerson: 0,
     dietaryRestrictions: [],
     cuisinePreferences: [],
-    activityPreferences: [GENERAL_ACTIVITY_PREFERENCES.food_drink],
-    vibe: ["casual"]
+    activityPreferences: [],
+    vibe: []
   };
 }
 
@@ -131,13 +120,13 @@ function toggle<T extends string>(items: T[], value: T) {
 }
 
 function resizeNeighborhoods(values: string[] | undefined, count: number) {
-  const current = values?.length ? values : ["Downtown Palo Alto"];
-  return Array.from({ length: count }, (_, index) => current[index] ?? "");
+  const current = values?.length ? values : [];
+  return Array.from({ length: Math.max(0, count) }, (_, index) => current[index] ?? "");
 }
 
 function locationPreviewQuery(draft: Draft) {
   if (draft.location.strategy === "from_host") {
-    return draft.location.hostNeighborhood?.trim() || "Downtown Palo Alto";
+    return draft.location.hostNeighborhood?.trim() || undefined;
   }
 
   if (draft.location.strategy === "between_attendees") {
@@ -148,12 +137,10 @@ function locationPreviewQuery(draft: Draft) {
       .map((neighborhood) => neighborhood.trim())
       .filter(Boolean);
 
-    return neighborhoods.length
-      ? neighborhoods.join(", ")
-      : "Downtown Palo Alto";
+    return neighborhoods.length ? neighborhoods.join(", ") : undefined;
   }
 
-  return draft.location.targetNeighborhood?.trim() || "Downtown Palo Alto";
+  return draft.location.targetNeighborhood?.trim() || undefined;
 }
 
 function googleMapEmbedUrl(query: string) {
@@ -173,7 +160,7 @@ function ChoiceChips<T extends string>({
   multi = true
 }: {
   values: readonly T[];
-  selected: T[] | T;
+  selected: T[] | T | "";
   onToggle: (value: T) => void;
   getLabel?: (value: string) => string;
   multi?: boolean;
@@ -455,13 +442,23 @@ function stripRequestForDraft(request: Draft): Draft {
 export default function PlannerWizard() {
   const router = useRouter();
   const { t, label, categoryLabel } = useLanguage();
+  const plannerPanelRef = useRef<HTMLDivElement | null>(null);
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(() => defaultDraft());
-  const [selectedCategoryId, setSelectedCategoryId] = useState(defaultCategoryId);
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [groupTypeTouched, setGroupTypeTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locationChoices, setLocationChoices] = useState<LocationChoice[]>([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
+  const previewQuery = locationPreviewQuery(draft);
+  const selectedCategory = selectedCategoryId ? categoryById(selectedCategoryId) : null;
+  const hasBrief =
+    Boolean(selectedCategory) ||
+    draft.groupProfile.numberOfPeople > 0 ||
+    draft.budgetPerPerson > 0 ||
+    Boolean(previewQuery) ||
+    Boolean(draft.timeWindow.start || draft.timeWindow.end);
   const stepLabels = [t("category"), t("specifics"), t("placeTime"), t("details")];
   const slideDetails = [
     {
@@ -498,6 +495,7 @@ export default function PlannerWizard() {
           const loadedDraft = stripRequestForDraft(data.request);
           setDraft(loadedDraft);
           setSelectedCategoryId(inferCategoryId(loadedDraft));
+          setGroupTypeTouched(true);
         }
       })
       .catch(() => {
@@ -521,6 +519,9 @@ export default function PlannerWizard() {
       if (!draft.groupProfile.numberOfPeople || draft.groupProfile.numberOfPeople < 1) {
         return t("peopleError");
       }
+      if (!groupTypeTouched) {
+        return t("groupTypeError");
+      }
       if (!selectedCategoryId) {
         return t("categoryError");
       }
@@ -536,6 +537,9 @@ export default function PlannerWizard() {
     }
 
     if (step === 2) {
+      if (!draft.location.maxDistanceMiles || draft.location.maxDistanceMiles < 0.5) {
+        return t("distanceError");
+      }
       if (draft.location.strategy === "between_attendees") {
         const neighborhoods = draft.location.attendeeNeighborhoods ?? [];
         const enoughNeighborhoods =
@@ -576,7 +580,7 @@ export default function PlannerWizard() {
       return t("budgetError");
     }
     return null;
-  }, [draft, selectedCategoryId, step, t]);
+  }, [draft, groupTypeTouched, selectedCategoryId, step, t]);
 
   function updateDraft(updater: (current: Draft) => Draft) {
     setDraft((current) => updater(current));
@@ -584,12 +588,25 @@ export default function PlannerWizard() {
     setLocationChoices([]);
   }
 
+  function keepPlannerPanelInView() {
+    window.requestAnimationFrame(() => {
+      if (window.matchMedia("(max-width: 1279px)").matches) {
+        plannerPanelRef.current?.scrollIntoView({
+          block: "start",
+          behavior: "auto"
+        });
+      }
+    });
+  }
+
   function nextStep() {
     if (stepError) {
       setError(stepError);
+      keepPlannerPanelInView();
       return;
     }
     setStep((current) => Math.min(current + 1, stepLabels.length - 1));
+    keepPlannerPanelInView();
   }
 
   function selectCategory(categoryId: string) {
@@ -599,10 +616,10 @@ export default function PlannerWizard() {
     updateDraft((current) => ({
       ...current,
       occasion: category.occasions[0] ?? current.occasion,
-      activityPreferences: [GENERAL_ACTIVITY_PREFERENCES[category.id]],
+      activityPreferences: [],
       dietaryRestrictions: usesFoodDetails ? current.dietaryRestrictions : [],
       cuisinePreferences: usesFoodDetails ? current.cuisinePreferences ?? [] : [],
-      vibe: usesFoodDetails ? current.vibe : ["casual"]
+      vibe: usesFoodDetails ? current.vibe : []
     }));
   }
 
@@ -753,7 +770,7 @@ export default function PlannerWizard() {
         </div>
 
         <section className="grid min-h-screen w-full grid-cols-1 gap-4 px-3 py-4 sm:gap-5 sm:px-4 lg:px-6 xl:grid-cols-[minmax(0,1fr)_clamp(300px,24vw,430px)] 2xl:gap-6 2xl:px-8">
-          <div className="motion-panel min-w-0 self-start p-4 sm:p-6">
+          <div ref={plannerPanelRef} className="motion-panel min-w-0 self-start p-4 sm:p-6">
           <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="editorial-kicker mb-2">
@@ -777,6 +794,7 @@ export default function PlannerWizard() {
 
           <form
             className="planner-deck-form"
+            noValidate
             onSubmit={(event) => {
               event.preventDefault();
               if (step < stepLabels.length - 1) {
@@ -807,11 +825,12 @@ export default function PlannerWizard() {
                         <input
                           className="field"
                           type="number"
-                          min={1}
+                          min={0}
                           max={40}
+                          placeholder="0"
                           value={draft.groupProfile.numberOfPeople}
                           onChange={(event) => {
-                            const numberOfPeople = Number(event.target.value);
+                            const numberOfPeople = Number(event.target.value || 0);
                             updateDraft((current) => ({
                               ...current,
                               groupProfile: {
@@ -834,18 +853,19 @@ export default function PlannerWizard() {
                         <span className="label">{t("typeOfPeople")}</span>
                         <ChoiceChips<GroupType>
                           values={GROUP_TYPES}
-                          selected={draft.groupProfile.typeOfPeople}
+                          selected={groupTypeTouched ? draft.groupProfile.typeOfPeople : ""}
                           multi={false}
                           getLabel={label}
-                          onToggle={(value) =>
+                          onToggle={(value) => {
+                            setGroupTypeTouched(true);
                             updateDraft((current) => ({
                               ...current,
                               groupProfile: {
                                 ...current.groupProfile,
                                 typeOfPeople: value
                               }
-                            }))
-                          }
+                            }));
+                          }}
                         />
                       </div>
                     </div>
@@ -914,16 +934,17 @@ export default function PlannerWizard() {
                         <input
                           className="field"
                           type="number"
-                          min={0.5}
+                          min={0}
                           max={50}
                           step={0.5}
+                          placeholder="0"
                           value={draft.location.maxDistanceMiles}
                           onChange={(event) =>
                             updateDraft((current) => ({
                               ...current,
                               location: {
                                 ...current.location,
-                                maxDistanceMiles: Number(event.target.value)
+                                maxDistanceMiles: Number(event.target.value || 0)
                               }
                             }))
                           }
@@ -1080,22 +1101,23 @@ export default function PlannerWizard() {
                         <input
                           className="field max-w-40"
                           type="number"
-                          min={15}
+                          min={0}
                           max={500}
+                          placeholder="0"
                           value={draft.budgetPerPerson}
                           onChange={(event) =>
                             updateDraft((current) => ({
                               ...current,
-                              budgetPerPerson: Number(event.target.value)
+                              budgetPerPerson: Number(event.target.value || 0)
                             }))
                           }
                         />
                         <input
                           className="h-2 w-full accent-coral"
                           type="range"
-                          min={15}
+                          min={0}
                           max={200}
-                          value={Math.min(draft.budgetPerPerson, 200)}
+                          value={Math.min(Math.max(draft.budgetPerPerson, 0), 200)}
                           onChange={(event) =>
                             updateDraft((current) => ({
                               ...current,
@@ -1173,7 +1195,10 @@ export default function PlannerWizard() {
                 type="button"
                 className="action-secondary"
                 disabled={step === 0 || loading}
-                onClick={() => setStep((current) => Math.max(current - 1, 0))}
+                onClick={() => {
+                  setStep((current) => Math.max(current - 1, 0));
+                  keepPlannerPanelInView();
+                }}
                 title="Back"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -1186,9 +1211,11 @@ export default function PlannerWizard() {
                   className="action-secondary"
                   onClick={() => {
                     setDraft(defaultDraft());
-                    setSelectedCategoryId(defaultCategoryId);
+                    setSelectedCategoryId("");
+                    setGroupTypeTouched(false);
                     setStep(0);
                     setError(null);
+                    keepPlannerPanelInView();
                   }}
                   title="Reset"
                 >
@@ -1219,39 +1246,64 @@ export default function PlannerWizard() {
           </form>
         </div>
 
-          <aside className="motion-panel min-w-0 self-start p-4 xl:sticky xl:top-6">
+          <aside
+            className={`motion-panel min-w-0 self-start p-4 xl:sticky xl:top-6 ${
+              previewQuery ? "" : "hidden xl:block"
+            }`}
+          >
           <div className="relative overflow-hidden rounded-lg border border-white/75 bg-mist shadow-sm">
-            <iframe
-              key={locationPreviewQuery(draft)}
-              src={googleMapEmbedUrl(locationPreviewQuery(draft))}
-              title={`${t("locationMap")}: ${locationPreviewQuery(draft)}`}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              className="aspect-[3/2] w-full border-0"
-            />
+            {previewQuery ? (
+              <iframe
+                key={previewQuery}
+                src={googleMapEmbedUrl(previewQuery)}
+                title={`${t("locationMap")}: ${previewQuery}`}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="aspect-[3/2] w-full border-0"
+                tabIndex={-1}
+              />
+            ) : (
+              <div className="grid aspect-[3/2] place-items-center bg-cloud px-6 text-center">
+                <div>
+                  <p className="display-title text-2xl text-ink">{t("mapWaiting")}</p>
+                  <p className="mt-2 text-sm leading-6 text-stone-500">{t("mapWaitingHint")}</p>
+                </div>
+              </div>
+            )}
             <div className="absolute left-3 top-3 rounded-lg border border-white/80 bg-white/75 px-3 py-2 text-xs font-black uppercase text-ink shadow-sm backdrop-blur">
               {t("locationMap")}
             </div>
-            <div className="absolute bottom-3 left-3 right-3 rounded-lg border border-white/80 bg-white/80 px-3 py-2 text-xs font-bold text-stone-600 shadow-sm backdrop-blur">
-              {locationPreviewQuery(draft)}
-            </div>
+            {previewQuery ? (
+              <div className="absolute bottom-3 left-3 right-3 rounded-lg border border-white/80 bg-white/80 px-3 py-2 text-xs font-bold text-stone-600 shadow-sm backdrop-blur">
+                {previewQuery}
+              </div>
+            ) : null}
           </div>
           <div className="mt-5 space-y-4">
             <div>
               <p className="editorial-kicker">{t("currentBrief")}</p>
               <p className="mt-1 text-sm leading-6 text-stone-600">
-                {categoryLabel(categoryById(selectedCategoryId))} {t("planFor")}{" "}
-                {draft.groupProfile.numberOfPeople} {label(draft.groupProfile.typeOfPeople)},{" "}
-                {t("around")} {label(draft.occasion)}
-                {categoryUsesFoodDetails(selectedCategoryId)
-                  ? `, ${
-                      (draft.cuisinePreferences ?? []).length > 0
-                        ? `${t("cuisine")} ${draft.cuisinePreferences?.map(label).join(", ")}, `
-                        : ""
-                    }${t("optimizeFor")} ${draft.vibe.map(label).join(", ")}`
-                  : ""}{" "}
-                {t("within")}{" "}
-                ${draft.budgetPerPerson}/person.
+                {hasBrief ? (
+                  <>
+                    {selectedCategory ? categoryLabel(selectedCategory) : t("notSet")}{" "}
+                    {t("planFor")} {draft.groupProfile.numberOfPeople}{" "}
+                    {groupTypeTouched ? label(draft.groupProfile.typeOfPeople) : t("notSet")},{" "}
+                    {t("around")}{" "}
+                    {selectedCategory ? label(draft.occasion) : t("notSet")}
+                    {categoryUsesFoodDetails(selectedCategoryId)
+                      ? `, ${
+                          (draft.cuisinePreferences ?? []).length > 0
+                            ? `${t("cuisine")} ${draft.cuisinePreferences?.map(label).join(", ")}, `
+                            : ""
+                        }${t("optimizeFor")} ${
+                          draft.vibe.length > 0 ? draft.vibe.map(label).join(", ") : t("notSet")
+                        }`
+                      : ""}{" "}
+                    {t("within")} ${draft.budgetPerPerson}/person.
+                  </>
+                ) : (
+                  t("briefPlaceholder")
+                )}
               </p>
             </div>
             <div className="grid gap-2 text-sm text-stone-600">
